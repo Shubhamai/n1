@@ -33,21 +33,29 @@ module tt_um_n1 (
   reg [7:0] out;
 
 
-  // load 1 to ram[0] and 2 to ram[1]
+  // load 1 to ram[0] and 2 to ram[1] and 0 to everything else
   initial begin
     ram[0] <= 8'h01;
     ram[1] <= 8'h02;
+    for (int i = 2; i < 256; i = i + 1) begin
+      ram[i] <= 8'h00;
+    end
   end
 
-  // load 16 bit add instruction to pram
+  // load 16 bit add instruction to pram and 0 to everything else
   initial begin
     pram[0] <= 16'h0001;
+    for (int i = 1; i < 256; i = i + 1) begin
+      pram[i] <= 16'h0000;
+    end
   end
   
   always @(posedge clk or negedge rst_n) begin
 
     if (~rst_n) begin
       pc <= 8'h00;
+      inst <= 16'h0000;
+      out <= 8'h00;
     end else begin
       if (ena) begin
         pc <= pc + 1;
