@@ -17,11 +17,11 @@ module tt_um_n1 (
 );
 
 
-  // implement data ram - 32 bytes - 8 bits each
-  reg [7:0] ram [0:31];
+  // implement data ram - 256 words - 8 bits each
+  reg [7:0] ram [0:255];
 
-  // implement program ram - 32 bytes - 16 bits each
-  reg [15:0] pram [0:31];
+  // implement program ram - 256 words - 16 bits each
+  reg [15:0] pram [0:255];
 
   /// program counter
   reg [7:0] pc;
@@ -29,6 +29,20 @@ module tt_um_n1 (
   // if enabled, on each clock edge, start reading from program memory, and execute the instruction
   reg [15:0] inst;
 
+  // add pc and data ( test ) ( only first 8 bits )
+  reg [7:0] out;
+
+
+  // load 1 to ram[0] and 2 to ram[1]
+  initial begin
+    ram[0] <= 8'h01;
+    ram[1] <= 8'h02;
+  end
+
+  // load 16 bit add instruction to pram
+  initial begin
+    pram[0] <= 16'h0001;
+  end
   
   always @(posedge clk or negedge rst_n) begin
 
@@ -41,11 +55,18 @@ module tt_um_n1 (
         // read instruction
         inst <= pram[pc];
 
+        // if instruction is 0001, add ram[0] and ram[1]
+        if (inst == 16'h0001) begin
+          out <= ram[0] + ram[1];
+        end
+
+
       end
     end
   end  
 
-  assign uo_out  = pc;
+
+  assign uo_out  = out;
   assign uio_out = 0;
   assign uio_oe  = 0;
 
