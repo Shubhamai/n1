@@ -16,8 +16,36 @@ module tt_um_example (
     input  wire       rst_n     // reset_n - low to reset
 );
 
-  // All output pins must be assigned. If not used, assign to 0.
-  assign uo_out  = ui_in + uio_in;  // Example: ou_out is the sum of ui_in and uio_in
+
+  // implement data ram - 32 bytes - 8 bits each
+  reg [7:0] ram [0:31];
+
+  // implement program ram - 32 bytes - 16 bits each
+  reg [15:0] pram [0:31];
+
+  /// program counter
+  reg [7:0] pc;
+
+  // if enabled, on each clock edge, start reading from program memory, and execute the instruction
+  reg [15:0] inst;
+
+  
+  always @(posedge clk or negedge rst_n) begin
+
+    if (~rst_n) begin
+      pc <= 8'h00;
+    end else begin
+      if (ena) begin
+        pc <= pc + 1;
+
+        // read instruction
+        inst <= pram[pc];
+
+      end
+    end
+  end  
+
+  assign uo_out  = pc;
   assign uio_out = 0;
   assign uio_oe  = 0;
 
