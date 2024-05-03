@@ -26,7 +26,7 @@ module tt_um_n1 #(
   assign uio_out = 8'b0;
 
   // RAM
-  reg [7:0] RAM  [RAM_BYTES - 1:0];
+  reg [15:0] RAM  [RAM_BYTES - 1:0];
 
   /// program counter
   reg [7:0] pc;
