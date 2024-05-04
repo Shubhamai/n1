@@ -26,19 +26,24 @@ module tt_um_n1 #(
   assign uio_out = 8'b0;
 
   // RAM
-  reg [15:0] RAM  [RAM_BYTES - 1:0];
+  reg [15:0] RAM[RAM_BYTES - 1:0];
+
+  // load the RAM from a file - TODO for simulation only
+  initial begin
+    $readmemb("example.asm.txt", RAM);
+  end
 
   /// program counter
-  reg [7:0] pc;
+  reg [15:0] pc;
 
   // if enabled, on each clock edge, start reading from ram, and execute the instruction
-  reg [7:0] inst;
+  reg [15:0] inst;
 
-  // registers
-  reg [7:0] r0;
-  reg [7:0] r1;
-  reg [7:0] r2;
-  reg [7:0] r3;
+  // general purpose registers
+  reg [15:0] r0;
+  reg [15:0] r1;
+  reg [15:0] r2;
+  reg [15:0] r3;
 
   // initial program counter
   initial begin
@@ -54,6 +59,7 @@ module tt_um_n1 #(
   always @(posedge clk) begin
     if (!rst_n) begin
       uo_out <= 8'b0;
+
       // write to memory only if write enable is high and in reset state
       if (wr_en) begin
         RAM[addr] <= uio_in;
@@ -65,11 +71,42 @@ module tt_um_n1 #(
       inst <= RAM[pc];
 
       // execute instruction , first 5 bits are location of the memory, next 3 bits are the operation
-      case (inst[7:5])
-        3'b000: r0 <= RAM[inst[4:0]];
-        3'b100: RAM[inst[4:0]] <= r0;
+      case (inst[15:12])
 
-        // on other instructions, do nothing
+        // move from immediate to register
+        4'b0001: begin
+          $display("moving immediate: %b to register: %b", inst[7:0], inst[11:9]);
+          case (inst[11:9])
+            3'b000: r0 <= inst[7:0];
+            3'b001: r1 <= inst[7:0];
+            3'b010: r2 <= inst[7:0];
+            3'b011: r3 <= inst[7:0];
+          endcase
+        end
+
+        // store from register to memory
+        4'b0010: begin
+          $display("storing from register: %b to memory address: %b", inst[11:9], inst[7:0]);
+          case (inst[11:9])
+            2'b000: RAM[inst[7:0]] <= r0;
+            2'b001: RAM[inst[7:0]] <= r1;
+            2'b010: RAM[inst[7:0]] <= r2;
+            2'b011: RAM[inst[7:0]] <= r3;
+          endcase
+        end
+
+        // print memory address value, assing to register uo_out
+        4'b0100: begin
+          $display("memory address: %b, value: %b", inst[7:0], RAM[inst[7:0]]);
+          uo_out <= RAM[inst[7:0]];
+        end
+
+        // end of program
+        4'b0101: begin
+          $display("end of program");
+          // $finish;
+        end
+
         default: ;
       endcase
 

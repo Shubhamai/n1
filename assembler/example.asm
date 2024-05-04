@@ -1,3 +1,0 @@
-mov r0, 0x01
-add r3, r0, 0x02
-mov 0x02, r3

@@ -24,20 +24,32 @@ async def test_project(dut):
     dut.rst_n.value = 0
     await ClockCycles(dut.clk, 2)
 
-    # write instruction 00000011 to address 0
-    dut.ui_in.value = WE | 0  # write enable and address
-    dut.uio_in.value = 0x03  # data address
-    await ClockCycles(dut.clk, 1)
+    # load .txt file containing the program
+    # with open("example.asm.txt") as f:
+    #     program = f.readlines()
 
-    # write data 0x55 to address 3
-    dut.ui_in.value = WE | 0x03  # write enable and address
-    dut.uio_in.value = 0x55  # data
-    await ClockCycles(dut.clk, 1)
+    # load the program into the memory
+    # for i, line in enumerate(program):
+    #     print(f"line {i}: {line} : {int(line, 16)}")
+        
+    #     dut.ui_in.value = WE | i
+    #     dut.uio_in.value = int(line, 16)
+    #     await ClockCycles(dut.clk, 1)
 
-    # load instruction  10000111 to address 1
-    dut.ui_in.value = WE | 1  # write enable and address
-    dut.uio_in.value = 0x87  # data address - 00000011
-    await ClockCycles(dut.clk, 1)
+    # # write instruction 00000011 to address 0
+    # dut.ui_in.value = WE | 0  # write enable and address
+    # dut.uio_in.value = 0x03  # data address
+    # await ClockCycles(dut.clk, 1)
+
+    # # write data 0x55 to address 3
+    # dut.ui_in.value = WE | 0x03  # write enable and address
+    # dut.uio_in.value = 0x55  # data
+    # await ClockCycles(dut.clk, 1)
+
+    # # load instruction  10000111 to address 1
+    # dut.ui_in.value = WE | 1  # write enable and address
+    # dut.uio_in.value = 0x87  # data address - 00000011
+    # await ClockCycles(dut.clk, 1)
 
     dut.rst_n.value = 1
 
@@ -46,12 +58,12 @@ async def test_project(dut):
 
     await ClockCycles(dut.clk, 10)
 
-    dut.rst_n.value = 0
+    # dut.rst_n.value = 0
 
     dut._log.info("read back the bytes and verify they are correct")
-    dut.uio_in.value = 0
-    dut.ui_in.value = 0x07
-    await ClockCycles(dut.clk, 2)
-    assert dut.uo_out.value == 0x55
+    # dut.uio_in.value = 0
+    # dut.ui_in.value = 0x07
+    # await ClockCycles(dut.clk, 2)
+    assert dut.uo_out.value == 0b01100011
 
     dut._log.info("all good!")
