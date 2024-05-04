@@ -29,9 +29,9 @@ module tt_um_n1 #(
   reg [15:0] RAM[RAM_BYTES - 1:0];
 
   // load the RAM from a file - TODO for simulation only
-  initial begin
-    $readmemb("./test/example.asm.txt", RAM);
-  end
+  // initial begin
+  //   $readmemb("./test/example.asm.txt", RAM);
+  // end
 
   /// program counter
   reg [15:0] pc;
