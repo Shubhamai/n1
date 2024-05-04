@@ -30,7 +30,7 @@ module tt_um_n1 #(
 
   // load the RAM from a file - TODO for simulation only
   initial begin
-    $readmemb("example.asm.txt", RAM);
+    $readmemb("./test/example.asm.txt", RAM);
   end
 
   /// program counter
