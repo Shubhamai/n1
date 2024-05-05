@@ -17,14 +17,30 @@ pub enum TokenType {
     #[token("store")]
     Store,
 
+    #[token("load")]
+    Load,
+
+    ////////////////////////////////
     #[token("add")]
     Add,
 
+    #[token("sub")]
+    Sub,
+
+    #[token("mul")]
+    Mul,
+
+    #[token("div")]
+    Div,
+
+    ////////////////////////////////
     #[token("print")]
     Print,
 
     #[token("end")]
     End,
+
+    ////////////////////////////////
 
     // Tokens can also be regex patterns.
     #[regex(r"r[0-9]")]
@@ -39,6 +55,8 @@ pub enum TokenType {
     // Comma and colon are literal tokens.
     #[token(",")]
     Comma,
+
+    ////////////////////////////////
 
     // Comments start with a double slash and go until the end of the line. Ignore them.
     #[regex(r"//.*", logos::skip)]

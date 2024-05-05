@@ -57,6 +57,30 @@ pub enum Instruction {
         // source register 2
         src2: Register,
     },
+    Sub {
+        // destination register
+        dest: Register,
+        // source register 1
+        src1: Register,
+        // source register 2
+        src2: Register,
+    },
+    Mul {
+        // destination register
+        dest: Register,
+        // source register 1
+        src1: Register,
+        // source register 2
+        src2: Register,
+    },
+    Div {
+        // destination register
+        dest: Register,
+        // source register 1
+        src1: Register,
+        // source register 2
+        src2: Register,
+    },
     Print {
         // memory address
         addr: MemoryAddressBits,
@@ -71,8 +95,11 @@ impl Instruction {
             Instruction::Mov { .. } => 1,
             Instruction::Store { .. } => 2,
             Instruction::Add { .. } => 3,
-            Instruction::Print { .. } => 4,
-            Instruction::End => 5,
+            Instruction::Sub { .. } => 4,
+            Instruction::Mul { .. } => 5,
+            Instruction::Div { .. } => 6,
+            Instruction::Print { .. } => 7,
+            Instruction::End => 8,
         }
     }
 
@@ -96,7 +123,28 @@ impl Instruction {
                 let src1 = *src1 as u16;
                 let src2 = *src2 as u16;
                 let opcode = self.get_opcode() as u16;
-                opcode << 12 | dest << 9 | src1 << 7 | src2
+                opcode << 12 | dest << 9 | src1 << 6 | src2 << 3
+            }
+            Instruction::Sub { dest, src1, src2 } => {
+                let dest = *dest as u16;
+                let src1 = *src1 as u16;
+                let src2 = *src2 as u16;
+                let opcode = self.get_opcode() as u16;
+                opcode << 12 | dest << 9 | src1 << 6 | src2 << 3
+            }
+            Instruction::Mul { dest, src1, src2 } => {
+                let dest = *dest as u16;
+                let src1 = *src1 as u16;
+                let src2 = *src2 as u16;
+                let opcode = self.get_opcode() as u16;
+                opcode << 12 | dest << 9 | src1 << 6 | src2 << 3
+            }
+            Instruction::Div { dest, src1, src2 } => {
+                let dest = *dest as u16;
+                let src1 = *src1 as u16;
+                let src2 = *src2 as u16;
+                let opcode = self.get_opcode() as u16;
+                opcode << 12 | dest << 9 | src1 << 6 | src2 << 3
             }
             Instruction::Print { addr } => {
                 let addr = *addr as u16;

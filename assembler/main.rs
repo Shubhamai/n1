@@ -76,7 +76,10 @@ fn get_machine_code(src: String) -> Vec<u16> {
                     },
                 });
             }
-            lexer::TokenType::Add => {
+            lexer::TokenType::Add
+            | lexer::TokenType::Sub
+            | lexer::TokenType::Mul
+            | lexer::TokenType::Div => {
                 let dest = parse_operand(lexer.next());
                 let src1 = parse_operand(lexer.next());
                 let src2 = parse_operand(lexer.next());
@@ -86,19 +89,64 @@ fn get_machine_code(src: String) -> Vec<u16> {
                 assert!(matches!(src1, Operand::Registers(_)));
                 assert!(matches!(src2, Operand::Registers(_)));
 
-                instructions.push(Instruction::Add {
-                    dest: match dest {
-                        Operand::Registers(reg) => reg,
-                        _ => panic!("Unexpected operand: {:?}", dest),
+                instructions.push(match token.token_type {
+                    lexer::TokenType::Add => Instruction::Add {
+                        dest: match dest {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", dest),
+                        },
+                        src1: match src1 {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", src1),
+                        },
+                        src2: match src2 {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", src2),
+                        },
                     },
-                    src1: match src1 {
-                        Operand::Registers(reg) => reg,
-                        _ => panic!("Unexpected operand: {:?}", src1),
+                    lexer::TokenType::Sub => Instruction::Sub {
+                        dest: match dest {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", dest),
+                        },
+                        src1: match src1 {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", src1),
+                        },
+                        src2: match src2 {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", src2),
+                        },
                     },
-                    src2: match src2 {
-                        Operand::Registers(reg) => reg,
-                        _ => panic!("Unexpected operand: {:?}", src2),
+                    lexer::TokenType::Mul => Instruction::Mul {
+                        dest: match dest {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", dest),
+                        },
+                        src1: match src1 {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", src1),
+                        },
+                        src2: match src2 {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", src2),
+                        },
                     },
+                    lexer::TokenType::Div => Instruction::Div {
+                        dest: match dest {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", dest),
+                        },
+                        src1: match src1 {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", src1),
+                        },
+                        src2: match src2 {
+                            Operand::Registers(reg) => reg,
+                            _ => panic!("Unexpected operand: {:?}", src2),
+                        },
+                    },
+                    _ => panic!("Unexpected token: {:?}", token),
                 });
             }
             lexer::TokenType::Print => {

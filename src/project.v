@@ -30,7 +30,7 @@ module tt_um_n1 #(
 
   // load the RAM from a file - TODO for simulation only
   // initial begin
-  //   $readmemb("./test/example.asm.txt", RAM);
+  //   $readmemb("example.asm.txt", RAM);
   // end
 
   /// program counter
@@ -39,21 +39,20 @@ module tt_um_n1 #(
   // if enabled, on each clock edge, start reading from ram, and execute the instruction
   reg [15:0] inst;
 
-  // general purpose registers
-  reg [15:0] r0;
-  reg [15:0] r1;
-  reg [15:0] r2;
-  reg [15:0] r3;
+  // 4 general purpose registers
+  reg [15:0] registers[3:0];
+
 
   // initial program counter
   initial begin
-    pc   <= 8'b0;
+    pc <= 8'b0;
     inst <= 8'b0;
 
-    r0   <= 8'b0;
-    r1   <= 8'b0;
-    r2   <= 8'b0;
-    r3   <= 8'b0;
+    // initialize registers
+    registers[0] <= 8'b0;
+    registers[1] <= 8'b0;
+    registers[2] <= 8'b0;
+    registers[3] <= 8'b0;
   end
 
   always @(posedge clk) begin
@@ -76,33 +75,51 @@ module tt_um_n1 #(
         // move from immediate to register
         4'b0001: begin
           $display("moving immediate: %b to register: %b", inst[7:0], inst[11:9]);
-          case (inst[11:9])
-            3'b000: r0 <= inst[7:0];
-            3'b001: r1 <= inst[7:0];
-            3'b010: r2 <= inst[7:0];
-            3'b011: r3 <= inst[7:0];
-          endcase
+          registers[inst[11:9]] <= inst[7:0];
         end
 
         // store from register to memory
         4'b0010: begin
           $display("storing from register: %b to memory address: %b", inst[11:9], inst[7:0]);
-          case (inst[11:9])
-            2'b000: RAM[inst[7:0]] <= r0;
-            2'b001: RAM[inst[7:0]] <= r1;
-            2'b010: RAM[inst[7:0]] <= r2;
-            2'b011: RAM[inst[7:0]] <= r3;
-          endcase
+          RAM[inst[7:0]] <= registers[inst[11:9]];
         end
 
         // print memory address value, assing to register uo_out
-        4'b0100: begin
+        4'b0111: begin
           $display("memory address: %b, value: %b", inst[7:0], RAM[inst[7:0]]);
           uo_out <= RAM[inst[7:0]];
         end
 
-        // end of program
+        // add
+        4'b0011: begin
+          $display("adding register: %b + register: %b to register: %b", inst[11:9], inst[8:6],
+                   inst[5:3]);
+          registers[inst[11:9]] <= registers[inst[8:6]] + registers[inst[5:3]];
+        end
+
+        // sub
+        4'b0100: begin
+          $display("subtracting register: %b - register: %b to register: %b", inst[11:9],
+                   inst[8:6], inst[5:3]);
+          registers[inst[11:9]] <= registers[inst[8:6]] - registers[inst[5:3]];
+        end
+
+        // mul
         4'b0101: begin
+          $display("multiplying register: %b * register: %b to register: %b", inst[11:9],
+                   inst[8:6], inst[5:3]);
+          registers[inst[11:9]] <= registers[inst[8:6]] * registers[inst[5:3]];
+        end
+
+        // div - TODO division by zero
+        4'b0110: begin
+          $display("dividing register: %b / register: %b to register: %b", inst[11:9], inst[8:6],
+                   inst[5:3]);
+          registers[inst[11:9]] <= registers[inst[8:6]] / registers[inst[5:3]];
+        end
+
+        // end of program
+        4'b1000: begin
           $display("end of program");
           // $finish;
         end
