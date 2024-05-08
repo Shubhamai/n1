@@ -5,7 +5,7 @@ mod lexer;
 use std::env;
 use std::io::Write;
 
-use crate::enums::{Instruction, Operand};
+use crate::enums::{Instruction, Operand, RegisterOrImmediate};
 use crate::lexer::{Lexer, Token};
 
 fn main() {
@@ -76,6 +76,8 @@ fn get_machine_code(src: String) -> Vec<u16> {
                     },
                 });
             }
+
+            // support both add r1 r2 r3 and add r1 r2 #10, add r1, 1 is parsed as add r1 r1 1
             lexer::TokenType::Add
             | lexer::TokenType::Sub
             | lexer::TokenType::Mul
@@ -87,7 +89,10 @@ fn get_machine_code(src: String) -> Vec<u16> {
                 // dest, src1, src2 must be a register
                 assert!(matches!(dest, Operand::Registers(_)));
                 assert!(matches!(src1, Operand::Registers(_)));
-                assert!(matches!(src2, Operand::Registers(_)));
+                assert!(matches!(
+                    src2,
+                    Operand::Registers(_) | Operand::Immediate(_)
+                ));
 
                 instructions.push(match token.token_type {
                     lexer::TokenType::Add => Instruction::Add {
@@ -100,7 +105,8 @@ fn get_machine_code(src: String) -> Vec<u16> {
                             _ => panic!("Unexpected operand: {:?}", src1),
                         },
                         src2: match src2 {
-                            Operand::Registers(reg) => reg,
+                            Operand::Registers(reg) => RegisterOrImmediate::Register(reg),
+                            Operand::Immediate(imm) => RegisterOrImmediate::Immediate(imm),
                             _ => panic!("Unexpected operand: {:?}", src2),
                         },
                     },
@@ -114,7 +120,8 @@ fn get_machine_code(src: String) -> Vec<u16> {
                             _ => panic!("Unexpected operand: {:?}", src1),
                         },
                         src2: match src2 {
-                            Operand::Registers(reg) => reg,
+                            Operand::Registers(reg) => RegisterOrImmediate::Register(reg),
+                            Operand::Immediate(imm) => RegisterOrImmediate::Immediate(imm),
                             _ => panic!("Unexpected operand: {:?}", src2),
                         },
                     },
@@ -128,7 +135,8 @@ fn get_machine_code(src: String) -> Vec<u16> {
                             _ => panic!("Unexpected operand: {:?}", src1),
                         },
                         src2: match src2 {
-                            Operand::Registers(reg) => reg,
+                            Operand::Registers(reg) => RegisterOrImmediate::Register(reg),
+                            Operand::Immediate(imm) => RegisterOrImmediate::Immediate(imm),
                             _ => panic!("Unexpected operand: {:?}", src2),
                         },
                     },
@@ -142,13 +150,63 @@ fn get_machine_code(src: String) -> Vec<u16> {
                             _ => panic!("Unexpected operand: {:?}", src1),
                         },
                         src2: match src2 {
-                            Operand::Registers(reg) => reg,
+                            Operand::Registers(reg) => RegisterOrImmediate::Register(reg),
+                            Operand::Immediate(imm) => RegisterOrImmediate::Immediate(imm),
                             _ => panic!("Unexpected operand: {:?}", src2),
                         },
                     },
                     _ => panic!("Unexpected token: {:?}", token),
                 });
             }
+
+            lexer::TokenType::Compare => {
+                let src1 = parse_operand(lexer.next());
+                let src2 = parse_operand(lexer.next());
+
+                instructions.push(Instruction::Compare {
+                    src1: match src1 {
+                        Operand::Registers(reg) => reg,
+                        _ => panic!("Unexpected operand: {:?}", src1),
+                    },
+                    src2: match src2 {
+                        Operand::Registers(reg) => reg,
+                        _ => panic!("Unexpected operand: {:?}", src2),
+                    },
+                });
+            }
+
+            lexer::TokenType::Jump => {
+                let operand = parse_operand(lexer.next());
+
+                instructions.push(Instruction::Jump {
+                    addr: match operand {
+                        Operand::MemoryAddress(addr) => addr,
+                        _ => panic!("Unexpected operand: {:?}", operand),
+                    },
+                });
+            }
+
+            lexer::TokenType::JumpNotEqual => {
+                let operand = parse_operand(lexer.next());
+
+                instructions.push(Instruction::JumpNotEqual {
+                    addr: match operand {
+                        Operand::MemoryAddress(addr) => addr,
+                        _ => panic!("Unexpected operand: {:?}", operand),
+                    },
+                });
+            }
+            lexer::TokenType::JumpLessEqual => {
+                let operand = parse_operand(lexer.next());
+
+                instructions.push(Instruction::JumpLessEqual {
+                    addr: match operand {
+                        Operand::MemoryAddress(addr) => addr,
+                        _ => panic!("Unexpected operand: {:?}", operand),
+                    },
+                });
+            }
+
             lexer::TokenType::Print => {
                 let operand = parse_operand(lexer.next());
 
@@ -182,11 +240,13 @@ fn get_machine_code(src: String) -> Vec<u16> {
 }
 
 fn parse_operand(token: Token) -> Operand {
+    // registers start with r, immediate values start with #, memory addresses start with 0x
+
     match token.token_type {
         lexer::TokenType::Register => Operand::Registers(token.lexeme.parse().unwrap()),
-        lexer::TokenType::Immediate => Operand::Immediate(token.lexeme.parse().unwrap()),
-
-        // convert hex to decimal
+        lexer::TokenType::Immediate => {
+            Operand::Immediate(token.lexeme[1..].parse::<u16>().unwrap())
+        }
         lexer::TokenType::Memory => {
             Operand::MemoryAddress(u16::from_str_radix(&token.lexeme[2..], 16).unwrap())
         }

@@ -34,6 +34,21 @@ pub enum TokenType {
     Div,
 
     ////////////////////////////////
+    /// Branching
+
+    #[token("cmp")]
+    Compare,
+
+    #[token("jump")]
+    Jump,
+
+    #[token("jumpne")]
+    JumpNotEqual,
+
+    #[token("jumple")]
+    JumpLessEqual,
+
+    ////////////////////////////////
     #[token("print")]
     Print,
 
@@ -42,14 +57,16 @@ pub enum TokenType {
 
     ////////////////////////////////
 
-    // Tokens can also be regex patterns.
+    // register names start with an 'r' followed by a number.
     #[regex(r"r[0-9]")]
     Register,
 
+    // memory addresses are hexadecimal numbers starting with '0x'.
     #[regex(r"0x[0-9a-fA-F]+")]
     Memory,
 
-    #[regex(r"[0-9]+")]
+    // immediate values are decimal numbers starting with # - eg. #123
+    #[regex(r"#[0-9]+")]
     Immediate,
 
     // Comma and colon are literal tokens.

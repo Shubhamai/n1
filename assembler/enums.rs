@@ -35,6 +35,12 @@ type RegisterBits = u16; // 3 bits
 type OpcodeBits = u16; // 4 bits
 
 #[derive(Debug)]
+pub enum RegisterOrImmediate {
+    Register(Register),
+    Immediate(ImmediateBits),
+}
+
+#[derive(Debug)]
 #[repr(u16)]
 pub enum Instruction {
     // register and immediate
@@ -55,7 +61,7 @@ pub enum Instruction {
         // source register 1
         src1: Register,
         // source register 2
-        src2: Register,
+        src2: RegisterOrImmediate,
     },
     Sub {
         // destination register
@@ -63,7 +69,7 @@ pub enum Instruction {
         // source register 1
         src1: Register,
         // source register 2
-        src2: Register,
+        src2: RegisterOrImmediate,
     },
     Mul {
         // destination register
@@ -71,7 +77,7 @@ pub enum Instruction {
         // source register 1
         src1: Register,
         // source register 2
-        src2: Register,
+        src2: RegisterOrImmediate,
     },
     Div {
         // destination register
@@ -79,7 +85,25 @@ pub enum Instruction {
         // source register 1
         src1: Register,
         // source register 2
+        src2: RegisterOrImmediate,
+    },
+    Compare {
+        // source register 1
+        src1: Register,
+        // source register 2
         src2: Register,
+    },
+    Jump {
+        // memory address
+        addr: MemoryAddressBits,
+    },
+    JumpNotEqual {
+        // memory address
+        addr: MemoryAddressBits,
+    },
+    JumpLessEqual {
+        // memory address
+        addr: MemoryAddressBits,
     },
     Print {
         // memory address
@@ -100,6 +124,11 @@ impl Instruction {
             Instruction::Div { .. } => 6,
             Instruction::Print { .. } => 7,
             Instruction::End => 8,
+
+            Instruction::Compare { .. } => 9,
+            Instruction::Jump { .. } => 10,
+            Instruction::JumpNotEqual { .. } => 11,
+            Instruction::JumpLessEqual { .. } => 12,
         }
     }
 
@@ -118,34 +147,122 @@ impl Instruction {
                 let opcode = self.get_opcode() as u16;
                 opcode << 12 | reg << 9 | addr
             }
-            Instruction::Add { dest, src1, src2 } => {
+            // Instruction::Add { dest, src1, src2 } => {
+            //     let dest = *dest as u16;
+            //     let src1 = *src1 as u16;
+
+            //     let is_register = match src2 {
+            //         RegisterOrImmediate::Register(_) => true,
+            //         RegisterOrImmediate::Immediate(_) => false,
+            //     };
+            //     let src2 = match src2 {
+            //         RegisterOrImmediate::Register(reg) => *reg as u16,
+            //         RegisterOrImmediate::Immediate(imm) => *imm as u16,
+            //     };
+
+            //     let opcode = self.get_opcode() as u16;
+
+            //     // 4 bits opcode, 3 bits dest, 3 bits src1, 3 bits src2, ins[0] = 0 for register, 1 for immediate
+            //     opcode << 12 | dest << 9 | src1 << 6 | src2 << 3 | is_register as u16
+
+            // }
+            // Instruction::Sub { dest, src1, src2 } => {
+            //     let dest = *dest as u16;
+            //     let src1 = *src1 as u16;
+            //     let is_register = match src2 {
+            //         RegisterOrImmediate::Register(_) => true,
+            //         RegisterOrImmediate::Immediate(_) => false,
+            //     };
+            //     let src2 = match src2 {
+            //         RegisterOrImmediate::Register(reg) => *reg as u16,
+            //         RegisterOrImmediate::Immediate(imm) => *imm as u16,
+            //     };
+
+            //     let opcode = self.get_opcode() as u16;
+
+            //     // 4 bits opcode, 3 bits dest, 3 bits src1, 3 bits src2, ins[0] = 0 for register, 1 for immediate
+            //     opcode << 12 | dest << 9 | src1 << 6 | src2 << 3 | is_register as u16
+            // }
+            // Instruction::Mul { dest, src1, src2 } => {
+            //     let dest = *dest as u16;
+            //     let src1 = *src1 as u16;
+            //     let is_register = match src2 {
+            //         RegisterOrImmediate::Register(_) => true,
+            //         RegisterOrImmediate::Immediate(_) => false,
+            //     };
+            //     let src2 = match src2 {
+            //         RegisterOrImmediate::Register(reg) => *reg as u16,
+            //         RegisterOrImmediate::Immediate(imm) => *imm as u16,
+            //     };
+
+            //     let opcode = self.get_opcode() as u16;
+
+            //     // 4 bits opcode, 3 bits dest, 3 bits src1, 3 bits src2, ins[0] = 0 for register, 1 for immediate
+            //     opcode << 12 | dest << 9 | src1 << 6 | src2 << 3 | is_register as u16
+            // }
+            // Instruction::Div { dest, src1, src2 } => {
+            //     let dest = *dest as u16;
+            //     let src1 = *src1 as u16;
+            //     let is_register = match src2 {
+            //         RegisterOrImmediate::Register(_) => true,
+            //         RegisterOrImmediate::Immediate(_) => false,
+            //     };
+            //     let src2 = match src2 {
+            //         RegisterOrImmediate::Register(reg) => *reg as u16,
+            //         RegisterOrImmediate::Immediate(imm) => *imm as u16,
+            //     };
+
+            //     let opcode = self.get_opcode() as u16;
+
+            //     // 4 bits opcode, 3 bits dest, 3 bits src1, 3 bits src2, ins[0] = 0 for register, 1 for immediate
+            //     opcode << 12 | dest << 9 | src1 << 6 | src2 << 3 | is_register as u16
+            // }
+            Instruction::Add { dest, src1, src2 }
+            | Instruction::Sub { dest, src1, src2 }
+            | Instruction::Mul { dest, src1, src2 }
+            | Instruction::Div { dest, src1, src2 } => {
                 let dest = *dest as u16;
+                let src1 = *src1 as u16;
+
+                let is_register = match src2 {
+                    RegisterOrImmediate::Register(_) => true,
+                    RegisterOrImmediate::Immediate(_) => false,
+                };
+                let src2 = match src2 {
+                    RegisterOrImmediate::Register(reg) => *reg as u16,
+                    RegisterOrImmediate::Immediate(imm) => *imm as u16,
+                };
+
+                let opcode = self.get_opcode() as u16;
+
+                // 4 bits opcode, 3 bits dest, 3 bits src1, 3 bits src2, ins[0] = 0 for register, 1 for immediate
+                opcode << 12 | dest << 9 | src1 << 6 | src2 << 3 | is_register as u16
+            }
+
+            Instruction::Compare { src1, src2 } => {
                 let src1 = *src1 as u16;
                 let src2 = *src2 as u16;
                 let opcode = self.get_opcode() as u16;
-                opcode << 12 | dest << 9 | src1 << 6 | src2 << 3
+                opcode << 12 | src1 << 9 | src2 << 6
             }
-            Instruction::Sub { dest, src1, src2 } => {
-                let dest = *dest as u16;
-                let src1 = *src1 as u16;
-                let src2 = *src2 as u16;
+            // Instruction::Jump { addr } => {
+            //     let addr = *addr as u16;
+            //     let opcode = self.get_opcode() as u16;
+            //     opcode << 12 | addr
+            // }
+            // Instruction::JumpNotEqual { addr } => {
+            //     let addr = *addr as u16;
+            //     let opcode = self.get_opcode() as u16;
+            //     opcode << 12 | addr
+            // }
+            Instruction::Jump { addr }
+            | Instruction::JumpNotEqual { addr }
+            | Instruction::JumpLessEqual { addr } => {
+                let addr = *addr as u16;
                 let opcode = self.get_opcode() as u16;
-                opcode << 12 | dest << 9 | src1 << 6 | src2 << 3
+                opcode << 12 | addr
             }
-            Instruction::Mul { dest, src1, src2 } => {
-                let dest = *dest as u16;
-                let src1 = *src1 as u16;
-                let src2 = *src2 as u16;
-                let opcode = self.get_opcode() as u16;
-                opcode << 12 | dest << 9 | src1 << 6 | src2 << 3
-            }
-            Instruction::Div { dest, src1, src2 } => {
-                let dest = *dest as u16;
-                let src1 = *src1 as u16;
-                let src2 = *src2 as u16;
-                let opcode = self.get_opcode() as u16;
-                opcode << 12 | dest << 9 | src1 << 6 | src2 << 3
-            }
+
             Instruction::Print { addr } => {
                 let addr = *addr as u16;
                 let opcode = self.get_opcode() as u16;
