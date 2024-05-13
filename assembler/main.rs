@@ -205,8 +205,18 @@ fn get_machine_code(src: String) -> Vec<u16> {
                         _ => panic!("Unexpected operand: {:?}", operand),
                     },
                 });
-            }
+            }   
+            // .entry main
+            lexer::TokenType::EntryFunction => {
+                let operand = parse_operand(lexer.next());
 
+                instructions.push(Instruction::EntryFunction {
+                    addr: match operand {
+                        Operand::MemoryAddress(addr) => addr,
+                        _ => panic!("Unexpected operand: {:?}", operand),
+                    },
+                });
+            }
             lexer::TokenType::Print => {
                 let operand = parse_operand(lexer.next());
 

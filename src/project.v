@@ -6,7 +6,7 @@
 `default_nettype none
 
 module tt_um_n1 #(
-    parameter RAM_BYTES = 255  // 255 bytes of RAM
+    parameter RAM_BYTES = 127  // 127 bytes of RAM
 ) (
     input  wire [7:0] ui_in,    // Dedicated inputs
     output reg  [7:0] uo_out,   // Dedicated outputs
@@ -50,12 +50,11 @@ module tt_um_n1 #(
   // Stack Pointer (sp) register
   reg [15:0] sp;
 
-  // Global Pointer (gp) register
-  reg [15:0] gp;
-
-
   // 4 general purpose registers
   reg [15:0] registers[3:0];
+
+  // stack
+  reg [15:0] stack[20];
 
   // CPSR flags
   reg N;  // Negative flag

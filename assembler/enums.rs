@@ -105,6 +105,10 @@ pub enum Instruction {
         // memory address
         addr: MemoryAddressBits,
     },
+    EntryFunction {
+        // memory address
+        addr: MemoryAddressBits,
+    },
     Print {
         // memory address
         addr: MemoryAddressBits,
@@ -129,6 +133,7 @@ impl Instruction {
             Instruction::Jump { .. } => 10,
             Instruction::JumpNotEqual { .. } => 11,
             Instruction::JumpLessEqual { .. } => 12,
+            Instruction::EntryFunction { .. } => 13,
         }
     }
 
@@ -264,6 +269,11 @@ impl Instruction {
             }
 
             Instruction::Print { addr } => {
+                let addr = *addr as u16;
+                let opcode = self.get_opcode() as u16;
+                opcode << 12 | addr
+            }
+            Instruction::EntryFunction { addr } => {
                 let addr = *addr as u16;
                 let opcode = self.get_opcode() as u16;
                 opcode << 12 | addr

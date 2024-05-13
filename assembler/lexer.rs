@@ -49,6 +49,9 @@ pub enum TokenType {
     JumpLessEqual,
 
     ////////////////////////////////
+    #[token(".entry")]
+    EntryFunction,
+
     #[token("print")]
     Print,
 
