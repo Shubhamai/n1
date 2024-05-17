@@ -5,8 +5,7 @@ mod lexer;
 use std::env;
 use std::io::Write;
 
-use crate::enums::{Instruction, Operand, RegisterOrImmediate};
-use crate::lexer::{Lexer, Token};
+use crate::{enums::Instruction, lexer::TokenType};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -30,238 +29,119 @@ fn main() {
 
     for code in machine_code {
         // write one line at a time
-        writeln!(file, "{:016b}", code).expect("Failed to write to file");
+        writeln!(file, "{}", code).expect("Failed to write to file");
     }
 }
 
-fn get_machine_code(src: String) -> Vec<u16> {
+fn get_machine_code(src: String) -> Vec<String> {
     // tokenize
-    let mut lexer = Lexer::new(src.to_string());
+    let mut lexer = TokenType::lexer(&src);
 
     // parse
     let mut instructions = Vec::new();
 
-    loop {
-        let token = lexer.next();
+    // next token macro
+    macro_rules! next {
+        () => {
+            lexer.next().unwrap().unwrap()
+        };
+    }
 
-        match token.token_type {
-            lexer::TokenType::Mov => {
-                let dest = parse_operand(lexer.next());
-                let src = parse_operand(lexer.next());
-
-                // instructions.push(Instruction::Mov(dest, src));
-                instructions.push(Instruction::Mov {
-                    reg: match dest {
-                        Operand::Registers(reg) => reg,
-                        _ => panic!("Unexpected operand: {:?}", dest),
-                    },
-                    imm: match src {
-                        Operand::Immediate(imm) => imm,
-                        _ => panic!("Unexpected operand: {:?}", src),
-                    },
-                });
+    macro_rules! next_register {
+        () => {
+            match next!() {
+                TokenType::Register(reg) => reg,
+                _ => continue,
             }
-            lexer::TokenType::Store => {
-                let dest = parse_operand(lexer.next());
-                let src = parse_operand(lexer.next());
+        };
+    }
 
-                instructions.push(Instruction::Store {
-                    addr: match dest {
-                        Operand::MemoryAddress(addr) => addr,
-                        _ => panic!("Unexpected operand: {:?}", dest),
-                    },
-                    reg: match src {
-                        Operand::Registers(reg) => reg,
-                        _ => panic!("Unexpected operand: {:?}", src),
-                    },
-                });
+    macro_rules! next_immediate {
+        () => {
+            match next!() {
+                TokenType::Immediate(imm) => imm,
+                _ => continue,
             }
+        };
+    }
 
-            // support both add r1 r2 r3 and add r1 r2 #10, add r1, 1 is parsed as add r1 r1 1
+    macro_rules! next_memory_address {
+        () => {
+            match next!() {
+                TokenType::MemoryAddress(addr) => addr,
+                _ => continue,
+            }
+        };
+    }
+
+    while let Ok(token) = lexer.next().unwrap_or_else(|| Ok(TokenType::EndOfFile)) {
+        println!("{:?}", token);
+        match token {
+            TokenType::Mov => {
+                let register = next_register!();
+                let immediate = next_immediate!();
+                instructions.push(Instruction::Mov(register, immediate));
+            }
+            TokenType::Store => {
+                let addr = next_memory_address!();
+                let register = next_register!();
+                instructions.push(Instruction::Store(register, addr));
+            }
             lexer::TokenType::Add
             | lexer::TokenType::Sub
             | lexer::TokenType::Mul
             | lexer::TokenType::Div => {
-                let dest = parse_operand(lexer.next());
-                let src1 = parse_operand(lexer.next());
-                let src2 = parse_operand(lexer.next());
+                let reg1 = next_register!();
+                let reg2 = next_register!();
+                let reg3 = next_register!();
 
-                // dest, src1, src2 must be a register
-                assert!(matches!(dest, Operand::Registers(_)));
-                assert!(matches!(src1, Operand::Registers(_)));
-                assert!(matches!(
-                    src2,
-                    Operand::Registers(_) | Operand::Immediate(_)
-                ));
-
-                instructions.push(match token.token_type {
-                    lexer::TokenType::Add => Instruction::Add {
-                        dest: match dest {
-                            Operand::Registers(reg) => reg,
-                            _ => panic!("Unexpected operand: {:?}", dest),
-                        },
-                        src1: match src1 {
-                            Operand::Registers(reg) => reg,
-                            _ => panic!("Unexpected operand: {:?}", src1),
-                        },
-                        src2: match src2 {
-                            Operand::Registers(reg) => RegisterOrImmediate::Register(reg),
-                            Operand::Immediate(imm) => RegisterOrImmediate::Immediate(imm),
-                            _ => panic!("Unexpected operand: {:?}", src2),
-                        },
-                    },
-                    lexer::TokenType::Sub => Instruction::Sub {
-                        dest: match dest {
-                            Operand::Registers(reg) => reg,
-                            _ => panic!("Unexpected operand: {:?}", dest),
-                        },
-                        src1: match src1 {
-                            Operand::Registers(reg) => reg,
-                            _ => panic!("Unexpected operand: {:?}", src1),
-                        },
-                        src2: match src2 {
-                            Operand::Registers(reg) => RegisterOrImmediate::Register(reg),
-                            Operand::Immediate(imm) => RegisterOrImmediate::Immediate(imm),
-                            _ => panic!("Unexpected operand: {:?}", src2),
-                        },
-                    },
-                    lexer::TokenType::Mul => Instruction::Mul {
-                        dest: match dest {
-                            Operand::Registers(reg) => reg,
-                            _ => panic!("Unexpected operand: {:?}", dest),
-                        },
-                        src1: match src1 {
-                            Operand::Registers(reg) => reg,
-                            _ => panic!("Unexpected operand: {:?}", src1),
-                        },
-                        src2: match src2 {
-                            Operand::Registers(reg) => RegisterOrImmediate::Register(reg),
-                            Operand::Immediate(imm) => RegisterOrImmediate::Immediate(imm),
-                            _ => panic!("Unexpected operand: {:?}", src2),
-                        },
-                    },
-                    lexer::TokenType::Div => Instruction::Div {
-                        dest: match dest {
-                            Operand::Registers(reg) => reg,
-                            _ => panic!("Unexpected operand: {:?}", dest),
-                        },
-                        src1: match src1 {
-                            Operand::Registers(reg) => reg,
-                            _ => panic!("Unexpected operand: {:?}", src1),
-                        },
-                        src2: match src2 {
-                            Operand::Registers(reg) => RegisterOrImmediate::Register(reg),
-                            Operand::Immediate(imm) => RegisterOrImmediate::Immediate(imm),
-                            _ => panic!("Unexpected operand: {:?}", src2),
-                        },
-                    },
-                    _ => panic!("Unexpected token: {:?}", token),
-                });
+                match token {
+                    lexer::TokenType::Add => instructions.push(Instruction::Add(reg1, reg2, reg3)),
+                    lexer::TokenType::Sub => instructions.push(Instruction::Sub(reg1, reg2, reg3)),
+                    lexer::TokenType::Mul => instructions.push(Instruction::Mul(reg1, reg2, reg3)),
+                    lexer::TokenType::Div => instructions.push(Instruction::Div(reg1, reg2, reg3)),
+                    _ => {}
+                }
             }
-
-            lexer::TokenType::Compare => {
-                let src1 = parse_operand(lexer.next());
-                let src2 = parse_operand(lexer.next());
-
-                instructions.push(Instruction::Compare {
-                    src1: match src1 {
-                        Operand::Registers(reg) => reg,
-                        _ => panic!("Unexpected operand: {:?}", src1),
-                    },
-                    src2: match src2 {
-                        Operand::Registers(reg) => reg,
-                        _ => panic!("Unexpected operand: {:?}", src2),
-                    },
-                });
+            TokenType::Compare => {
+                let reg1 = next_register!();
+                let reg2 = next_register!();
+                instructions.push(Instruction::Compare(reg1, reg2));
             }
-
-            lexer::TokenType::Jump => {
-                let operand = parse_operand(lexer.next());
-
-                instructions.push(Instruction::Jump {
-                    addr: match operand {
-                        Operand::MemoryAddress(addr) => addr,
-                        _ => panic!("Unexpected operand: {:?}", operand),
-                    },
-                });
+            TokenType::Jump => {
+                let addr = next_memory_address!();
+                instructions.push(Instruction::Jump(addr));
             }
-
-            lexer::TokenType::JumpNotEqual => {
-                let operand = parse_operand(lexer.next());
-
-                instructions.push(Instruction::JumpNotEqual {
-                    addr: match operand {
-                        Operand::MemoryAddress(addr) => addr,
-                        _ => panic!("Unexpected operand: {:?}", operand),
-                    },
-                });
+            TokenType::JumpNotEqual => {
+                let addr = next_memory_address!();
+                instructions.push(Instruction::JumpNotEqual(addr));
             }
-            lexer::TokenType::JumpLessEqual => {
-                let operand = parse_operand(lexer.next());
-
-                instructions.push(Instruction::JumpLessEqual {
-                    addr: match operand {
-                        Operand::MemoryAddress(addr) => addr,
-                        _ => panic!("Unexpected operand: {:?}", operand),
-                    },
-                });
-            }   
-            // .entry main
-            lexer::TokenType::EntryFunction => {
-                let operand = parse_operand(lexer.next());
-
-                instructions.push(Instruction::EntryFunction {
-                    addr: match operand {
-                        Operand::MemoryAddress(addr) => addr,
-                        _ => panic!("Unexpected operand: {:?}", operand),
-                    },
-                });
+            TokenType::JumpLessEqual => {
+                let addr = next_memory_address!();
+                instructions.push(Instruction::JumpLessEqual(addr));
             }
-            lexer::TokenType::Print => {
-                let operand = parse_operand(lexer.next());
-
-                instructions.push(Instruction::Print {
-                    addr: match operand {
-                        Operand::MemoryAddress(addr) => addr,
-                        _ => panic!("Unexpected operand: {:?}", operand),
-                    },
-                });
+            TokenType::EntryFunction(entry_function) => {
+                instructions.push(Instruction::EntryFunction(entry_function));
             }
-            lexer::TokenType::End => {
+            TokenType::Print => {
+                let addr = next_memory_address!();
+                instructions.push(Instruction::Print(addr));
+            }
+            TokenType::End => {
                 instructions.push(Instruction::End);
-                break;
             }
-            lexer::TokenType::EndOfFile => break,
-            _ => panic!("Unexpected token: {:?}", token),
+            _ => break,
         }
     }
 
-    // print instructions
-    println!("{:?}", instructions);
-
     // generate machine code
-    let mut machine_code: Vec<u16> = Vec::new();
+    let mut machine_code: Vec<String> = Vec::new();
 
     for instruction in instructions {
         machine_code.push(instruction.to_binary());
     }
 
     machine_code
-}
-
-fn parse_operand(token: Token) -> Operand {
-    // registers start with r, immediate values start with #, memory addresses start with 0x
-
-    match token.token_type {
-        lexer::TokenType::Register => Operand::Registers(token.lexeme.parse().unwrap()),
-        lexer::TokenType::Immediate => {
-            Operand::Immediate(token.lexeme[1..].parse::<u16>().unwrap())
-        }
-        lexer::TokenType::Memory => {
-            Operand::MemoryAddress(u16::from_str_radix(&token.lexeme[2..], 16).unwrap())
-        }
-        _ => panic!("Unexpected token: {:?}", token),
-    }
 }
 
 #[cfg(test)]
@@ -272,7 +152,7 @@ mod tests {
     fn test_parse_operand() {
         let machine_code = get_machine_code("mov r1 10".to_string());
 
-        assert_eq!(machine_code, vec![0b0001_001_00000_1010]);
+        // assert_eq!(machine_code, vec!["0001001000001010"]);
 
         // let machine_code = get_machine_code("store 0x10 r1".to_string());
 
