@@ -1,9 +1,11 @@
 use logos::Logos;
+use parser::parser;
 mod enums;
 mod lexer;
+mod parser;
 
-use std::env;
 use std::io::Write;
+use std::{collections::HashMap, env};
 
 use crate::{enums::Instruction, lexer::TokenType};
 
@@ -15,9 +17,9 @@ fn main() {
         return;
     }
 
-    let filename = &args[1];
+    let filepath = &args[1];
 
-    let src = std::fs::read_to_string(filename)
+    let src = std::fs::read_to_string(filepath)
         .expect("Failed to read file")
         .to_string();
 
@@ -25,7 +27,7 @@ fn main() {
 
     // write to file as filename.txt in the same directory
     let mut file =
-        std::fs::File::create(format!("{}", filename) + ".txt").expect("Failed to create file");
+        std::fs::File::create(format!("{}", filepath) + ".txt").expect("Failed to create file");
 
     for code in machine_code {
         // write one line at a time
@@ -33,105 +35,120 @@ fn main() {
     }
 }
 
+fn split_by_label(instructions: Vec<TokenType>) -> HashMap<String, Vec<TokenType>> {
+    let mut result = HashMap::new();
+    let mut current_label = String::new();
+    let mut current_segment = Vec::new();
+
+    for instruction in instructions {
+        if let TokenType::Label(label) = &instruction {
+            if !current_segment.is_empty() && !current_label.is_empty() {
+                result.insert(current_label.clone(), current_segment);
+                current_segment = Vec::new();
+            }
+            current_label = label.clone();
+        } else {
+            current_segment.push(instruction.clone());
+        }
+    }
+
+    if !current_segment.is_empty() && !current_label.is_empty() {
+        result.insert(current_label, current_segment);
+    }
+
+    result
+}
+
 fn get_machine_code(src: String) -> Vec<String> {
     // tokenize
-    let mut lexer = TokenType::lexer(&src);
+    let lexer = TokenType::lexer(&src);
+    let tokens_vec: Vec<TokenType> = lexer.filter_map(|op| op.ok()).collect();
 
-    // parse
-    let mut instructions = Vec::new();
+    let mut instructions: Vec<Instruction> = Vec::new();
 
-    // next token macro
-    macro_rules! next {
-        () => {
-            lexer.next().unwrap().unwrap()
-        };
+    // remove first token as it is the entry function
+    if let TokenType::EntryFunction(g) = &tokens_vec[0] {
+        instructions.push(Instruction::Jump(g.to_string()));
     }
 
-    macro_rules! next_register {
-        () => {
-            match next!() {
-                TokenType::Register(reg) => reg,
-                _ => continue,
-            }
-        };
+    // parse instructions for each hashmap value
+    let mut func_address = HashMap::new();
+    for (_label, label_instruction) in split_by_label(tokens_vec[1..].to_vec()) {
+        func_address.insert(_label, instructions.len());
+
+        let sub_instructions = parser(label_instruction);
+        instructions.extend(sub_instructions);
+
+        // println!("Label: {}", _label);
+        // for (index, sub_instruction) in sub_instructions.iter().enumerate() {
+        //     println!(
+        //         "    {:<24} {:>10}",
+        //         format!("{:?}", sub_instruction),
+        //         if address_change_ins.contains(&index) {
+        //             "true"
+        //         } else {
+        //             ""
+        //         }
+        //     );
+        // }
     }
 
-    macro_rules! next_immediate {
-        () => {
-            match next!() {
-                TokenType::Immediate(imm) => imm,
-                _ => continue,
-            }
-        };
-    }
+    // clone instructions
+    let mut instructions = instructions.clone();
 
-    macro_rules! next_memory_address {
-        () => {
-            match next!() {
-                TokenType::MemoryAddress(addr) => addr,
-                _ => continue,
-            }
-        };
-    }
 
-    while let Ok(token) = lexer.next().unwrap_or_else(|| Ok(TokenType::EndOfFile)) {
-        println!("{:?}", token);
-        match token {
-            TokenType::Mov => {
-                let register = next_register!();
-                let immediate = next_immediate!();
-                instructions.push(Instruction::Mov(register, immediate));
-            }
-            TokenType::Store => {
-                let addr = next_memory_address!();
-                let register = next_register!();
-                instructions.push(Instruction::Store(register, addr));
-            }
-            lexer::TokenType::Add
-            | lexer::TokenType::Sub
-            | lexer::TokenType::Mul
-            | lexer::TokenType::Div => {
-                let reg1 = next_register!();
-                let reg2 = next_register!();
-                let reg3 = next_register!();
-
-                match token {
-                    lexer::TokenType::Add => instructions.push(Instruction::Add(reg1, reg2, reg3)),
-                    lexer::TokenType::Sub => instructions.push(Instruction::Sub(reg1, reg2, reg3)),
-                    lexer::TokenType::Mul => instructions.push(Instruction::Mul(reg1, reg2, reg3)),
-                    lexer::TokenType::Div => instructions.push(Instruction::Div(reg1, reg2, reg3)),
-                    _ => {}
+    // change jump, call instructions to actual addresses
+    for (index, instruction) in instructions.clone().into_iter().enumerate() {
+        match instruction {
+            Instruction::Jump(label) => {
+                // if label is a number in string format
+                if label.parse::<i32>().is_ok() {
+                    // convert relative address to binary string
+                    // *instruction =
+                    //     Instruction::Jump(format!("{:08b}", label.parse::<i32>().unwrap()));
+                    instructions[index] = Instruction::Jump(format!(
+                        "{:08b}",
+                        label.parse::<i32>().unwrap() + index as i32
+                    ));
+                } else {
+                    if let Some(address) = func_address.get(&label) {
+                        // convert address to binary string
+                        // *instruction = Instruction::Jump(format!("{:08b}", address));
+                        instructions[index] = Instruction::Jump(format!("{:08b}", address));
+                    }
                 }
             }
-            TokenType::Compare => {
-                let reg1 = next_register!();
-                let reg2 = next_register!();
-                instructions.push(Instruction::Compare(reg1, reg2));
+            Instruction::JumpLessEqual(label) => {
+                // if label is a number in string format
+                if label.parse::<i32>().is_ok() {
+                    // convert relative address to binary string
+                    // *instruction =
+                    //     Instruction::JumpLessEqual(format!("{:08b}", label.parse::<i32>().unwrap()));
+                    instructions[index] = Instruction::JumpLessEqual(format!(
+                        "{:08b}",
+                        label.parse::<i32>().unwrap() + index as i32
+                    ));
+                } else {
+                    if let Some(address) = func_address.get(&label) {
+                        // convert address to binary string
+                        // *instruction = Instruction::JumpLessEqual(format!("{:08b}", address));
+                        instructions[index] =
+                            Instruction::JumpLessEqual(format!("{:08b}", address));
+                    }
+                }
             }
-            TokenType::Jump => {
-                let addr = next_memory_address!();
-                instructions.push(Instruction::Jump(addr));
+            Instruction::Call(label) => {
+                if let Some(address) = func_address.get(&label) {
+                    instructions[index] = Instruction::Call(format!("{:08b}", address));
+                }
             }
-            TokenType::JumpNotEqual => {
-                let addr = next_memory_address!();
-                instructions.push(Instruction::JumpNotEqual(addr));
-            }
-            TokenType::JumpLessEqual => {
-                let addr = next_memory_address!();
-                instructions.push(Instruction::JumpLessEqual(addr));
-            }
-            TokenType::EntryFunction(entry_function) => {
-                instructions.push(Instruction::EntryFunction(entry_function));
-            }
-            TokenType::Print => {
-                let addr = next_memory_address!();
-                instructions.push(Instruction::Print(addr));
-            }
-            TokenType::End => {
-                instructions.push(Instruction::End);
-            }
-            _ => break,
+            _ => {}
         }
+    }
+
+    // print all instructions
+    for instruction in &instructions {
+        println!("{:?}", instruction);
     }
 
     // generate machine code

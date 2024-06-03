@@ -43,8 +43,14 @@ pub enum TokenType {
 
     ////////////////////////////////
     // eg - .entry main, parse to EntryFunction("main")
-    #[token(".entry[ \t]+", |lex| lex.slice()[7..].to_string())]
+    #[regex(r"\.entry [a-zA-Z0-9_]+", |lex| lex.slice()[7..].to_string())]
     EntryFunction(String),
+
+    #[token("call")]
+    Call,
+
+    #[token("ret")]
+    Return,
 
     #[token("print")]
     Print,
@@ -73,23 +79,26 @@ pub enum TokenType {
     MemoryAddress(String),
 
     // relative memory addresses - eg. +5, -3
-    #[regex(r"[\+\-][0-9]+", |lex| lex.slice().parse::<i32>().unwrap())]
+    #[regex(r"[+-][0-9]+", |lex| {
+        let relative_memory_address = lex.slice().parse::<i32>().unwrap();
+        relative_memory_address
+    })]
     RelativeMemoryAddress(i32),
 
-    // immediate values are decimal numbers starting with # - eg. #123 , parse it to 8-bit string
+    // immediate values are decimal numbers starting with # - eg. #123, #-10 , parse it to 8-bit string
     #[regex(r"#[0-9]+", |lex| {
         let immediate = lex.slice()[1..].parse::<usize>().unwrap();
         format!("{:08b}", immediate)
     })]
     Immediate(String),
 
-    // label are alphanumeric strings starting with a ':' - eg. ':label'
-    #[regex(r":[a-zA-Z0-9_]+", |lex| lex.slice()[1..].to_string())]
+    // label are alphanumeric strings ending with a ':' - eg. 'label:'
+    #[regex(r"[a-zA-Z0-9_]+:", |lex| lex.slice()[..lex.slice().len()-1].to_string())]
     Label(String),
 
     // Identifiers are alphanumeric strings not starting with a number or a colon.
-    // #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
-    // Identifier(String),
+    #[regex(r"[a-zA-Z_][a-zA-Z0-9_]*", |lex| lex.slice().to_string())]
+    Identifier(String),
 
     // Comma and colon are literal tokens.
     #[token(",")]

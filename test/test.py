@@ -13,7 +13,7 @@ async def test_project(dut):
     dut._log.info("Start")
 
     # Set the clock period to 10 us (100 KHz)
-    clock = Clock(dut.clk, 10, units="us")
+    clock = Clock(dut.clk, 1000, units="us") # 10us -> 10 KHz
     cocotb.start_soon(clock.start())
 
     # Reset
@@ -29,7 +29,7 @@ async def test_project(dut):
     # All the bidirectional ports are used for the data_in signal, so they should be inputs
     # assert int(dut.uio_oe .value) == 0
 
-    await ClockCycles(dut.clk, 1000)
+    await ClockCycles(dut.clk, 100)
 
     dut._log.info("read back the bytes and verify they are correct")
     assert dut.uo_out.value == 8
