@@ -32,6 +32,6 @@ async def test_project(dut):
     await ClockCycles(dut.clk, 100)
 
     dut._log.info("read back the bytes and verify they are correct")
-    assert dut.uo_out.value == 8
+    assert dut.uo_out.value == 10
 
     dut._log.info("all good!")
