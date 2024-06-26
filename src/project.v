@@ -6,255 +6,247 @@
 `default_nettype none
 
 module tt_um_n1 #(
-    parameter RAM_BYTES = 127  // 127 bytes of RAM
+    parameter RAM_SIZE = 128  // 128 bytes of RAM
 ) (
     input  wire [7:0] ui_in,    // Dedicated inputs
     output reg  [7:0] uo_out,   // Dedicated outputs
     input  wire [7:0] uio_in,   // IOs: Input path
     output wire [7:0] uio_out,  // IOs: Output path
     output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
-    input  wire       ena,      // always 1 when the design is powered, so you can ignore it
-    input  wire       clk,      // clock
-    input  wire       rst_n     // reset_n - low to reset
+    input  wire       ena,      // Enable signal (always 1 when the design is powered)
+    input  wire       clk,      // Clock signal
+    input  wire       rst_n     // Reset signal (active low)
 );
 
-  localparam addr_bits = $clog2(RAM_BYTES);
+  // Calculate the number of bits needed to address the RAM
+  localparam ADDR_BITS = $clog2(RAM_SIZE);
 
-  wire [addr_bits-1:0] addr = ui_in[addr_bits-1:0];
-  wire wr_en = ui_in[7];  // write enable
-  assign uio_oe  = 8'b0;  // All bidirectional IOs are inputs
+
+  // Input signals
+  wire [ADDR_BITS-1:0] ram_addr = ui_in[ADDR_BITS-1:0];
+  wire write_enable = ui_in[7];
+
+  // Set all bidirectional IOs as inputs
+  assign uio_oe  = 8'b0;
   assign uio_out = 8'b0;
 
-  // RAM
-  reg [15:0] RAM[RAM_BYTES - 1:0];
+  // RAM declaration
+  reg [15:0] ram[RAM_SIZE - 1:0];
 
   // load the RAM from a file - TODO for simulation only
-  // initial begin
-  //   $readmemb("functions.asm.txt", RAM);
-  // end
-
-  // display the RAM contents
-  // initial begin
-  //   $display("RAM contents:");
-  //   for (int i = 0; i < RAM_BYTES; i = i + 1) begin
-  //     $display("RAM[%d] = %b", i, RAM[i]);
-  //   end
-  // end
-
-  /// program counter
-  reg [15:0] pc;
-
-  // if enabled, on each clock edge, start reading from ram, and execute the instruction
-  reg [15:0] inst;
-
-  // Stack Pointer (sp) register
-  reg [15:0] sp;
-
-  // 4 general purpose registers
-  reg [15:0] registers[3:0];
-
-  // stack
-  reg [15:0] stack[20];
-
-  // CPSR flags
-  reg N;  // Negative flag
-  reg Z;  // Zero flag
-  reg C;  // Carry flag
-  reg V;  // Overflow flag
-
-
-  // initial program counter
   initial begin
-    pc = 8'b0;
-    inst = 8'b0;
-
-    sp = 8'b0;
-    // gp = 8'b0;
-
-    // initialize registers
-    registers[0] = 8'b0;
-    registers[1] = 8'b0;
-    registers[2] = 8'b0;
-    registers[3] = 8'b0;
-
-    N = 1'b0;
-    Z = 1'b0;
-    C = 1'b0;
-    V = 1'b0;
+    $readmemb("../examples/functions.asm.txt", ram);
   end
 
+  // CPU Registers
+  reg [15:0] program_counter;
+  reg [15:0] instruction;
+  reg [15:0] stack_pointer;
+  reg [15:0] general_registers[3:0];
+
+  // Stack
+  reg [15:0] stack[31:0];
+
+  // CPSR (Current Program Status Register) flags
+  reg negative_flag;
+  reg zero_flag;
+  reg carry_flag;
+  reg overflow_flag;
+
+  // Initialize CPU state
+  initial begin
+    program_counter = 16'b0;
+    instruction = 16'b0;
+    stack_pointer = 16'b0;
+    
+    for (int i = 0; i < 4; i = i + 1) begin
+      general_registers[i] = 16'b0;
+    end
+
+    negative_flag = 1'b0;
+    zero_flag = 1'b0;
+    carry_flag = 1'b0;
+    overflow_flag = 1'b0;
+  end
+
+  // Main CPU logic
   always @(posedge clk) begin
     if (!rst_n) begin
-      uo_out = 8'b0;
-
-      // write to memory only if write enable is high and in reset state
-      if (wr_en) begin
-        RAM[addr] = uio_in;
+      // Reset state
+      uo_out <= 8'b0;
+      
+      // Write to memory only if write enable is high during reset
+      if (write_enable) begin
+        ram[ram_addr] <= uio_in;
       end
-      uo_out = RAM[addr];
-
+      uo_out <= ram[ram_addr];
     end else begin
-      // load instruction 
-      // $display("loading instruction from address: %b", pc);
-      inst = RAM[pc];
-
-      // execute instruction , first 5 bits are location of the memory, next 3 bits are the operation
-      case (inst[15:12])
-
-        // move from immediate to register
-        4'b0001: begin
-          $display("moving immediate: %b to register: %b", inst[7:0], inst[11:9]);
-          registers[inst[11:9]] <= inst[7:0];
-
-          pc = pc + 1;
-        end
-
-        // store from register to memory
-        4'b0010: begin
-          $display("storing from register: %b to memory address: %b", inst[11:9], inst[7:0]);
-          RAM[inst[7:0]] = registers[inst[11:9]];
-
-          pc = pc + 1;
-        end
-
-        // print memory address value, assing to register uo_out
-        4'b0111: begin
-          $display("memory address: %b, value: %b", inst[7:0], RAM[inst[7:0]]);
-          uo_out = RAM[inst[7:0]];
-
-          pc = pc + 1;
-        end
-
-        // add                 
-        4'b0011: begin
-          $display("adding register: %b + register: %b to register: %b", inst[11:9], inst[8:6],
-                   inst[5:3]);
-
-          // if inst[0] is 1, then inst[5:3] is immediate value else it is register value
-
-
-          {C, registers[inst[11:9]]} = registers[inst[8:6]] + registers[inst[5:3]];
-          N = registers[inst[11:9]][15];
-          Z = (registers[inst[11:9]] == 0);
-          V = (registers[inst[8:6]][15] == registers[inst[5:3]][15]) && (registers[inst[11:9]][15] != registers[inst[8:6]][15]);
-
-          pc = pc + 1;
-        end
-
-        // sub
-        4'b0100: begin
-          $display("subtracting register: %b - register: %b to register: %b", inst[11:9],
-                   inst[8:6], inst[5:3]);
-          {C, registers[inst[11:9]]} = registers[inst[8:6]] - registers[inst[5:3]];
-          N = registers[inst[11:9]][15];
-          Z = (registers[inst[11:9]] == 0);
-          V = (registers[inst[8:6]][15] != registers[inst[5:3]][15]) && (registers[inst[11:9]][15] != registers[inst[8:6]][15]);
-
-          pc = pc + 1;
-        end
-
-        // mul
-        4'b0101: begin
-          $display("multiplying register: %b * register: %b to register: %b", inst[11:9],
-                   inst[8:6], inst[5:3]);
-          registers[inst[11:9]] = registers[inst[8:6]] * registers[inst[5:3]];
-
-          pc = pc + 1;
-        end
-
-        // div - TODO division by zero
-        4'b0110: begin
-          $display("dividing register: %b / register: %b to register: %b", inst[11:9], inst[8:6],
-                   inst[5:3]);
-          registers[inst[11:9]] = registers[inst[8:6]] / registers[inst[5:3]];
-
-          pc = pc + 1;
-        end
-
-
-        // cmp
-        4'b1001: begin
-
-          // display register with value in decimal
-          $display("comparing register: %b (%d) with register: %b (%d)", inst[11:9],
-                   registers[inst[11:9]], inst[8:6], registers[inst[8:6]]);
-
-          // {C, Z} = registers[inst[11:9]] - registers[inst[8:6]];
-
-          Z = registers[inst[11:9]] == registers[inst[8:6]];
-          N = registers[inst[11:9]] < registers[inst[8:6]];
-
-          
-          // N = registers[inst[11:9]][15] ^ registers[inst[8:6]][15];
-          
-          // V = (registers[inst[11:9]][15] != registers[inst[8:6]][15]) && (Z[15] != registers[inst[11:9]][15]);
-
-          // $display("[cmp] Found N: %b, Z: %b, C: %b", N, Z, C);
-
-          pc = pc + 1;
-        end
-
-        // jumpne
-        4'b1011: begin
-          if (!Z) begin
-            $display("[jumpne] jumping to address: %b", inst[7:0]);
-            pc = inst[7:0];
-          end else begin
-            $display("[jumpne] NOT jumping to address: %b", inst[7:0]);
-            pc = pc + 1;
-
-          end
-        end
-
-        // 1100 - jumple - jump if less than or equal
-        4'b1100: begin
-          $display("[jumple] Found N: %b, Z: %b, C: %b", N, Z, C);
-
-          if (N || Z) begin
-            $display("[jumple] jumping to address: %b", inst[7:0]);
-            pc = inst[7:0];
-          end else begin
-            $display("[jumple] NOT jumping to address: %b", inst[7:0]);
-            pc = pc + 1;
-
-          end
-        end
-
-        // jump
-        4'b1010: begin
-          $display("[jump] jumping to address: %b", inst[7:0]);
-          pc = inst[7:0];
-        end
-
-        // call
-        4'b1101: begin
-          $display("[call] calling address: %b", inst[7:0]);
-          stack[sp] = pc + 1;
-          sp = sp + 1;
-          pc = inst[7:0];
-
-          $display("[call] pc: %b", pc);
-        end
-
-        // ret
-        4'b1110: begin
-          $display("[ret] returning to address: %b", stack[sp-1]);
-          pc = stack[sp-1];
-          sp = sp - 1;
-        end
-
-        // end of program
-        4'b1000: begin
-          // $display("end of program");
-          // $finish;
-        end
-
-        // default: $display("unknown instruction: %b", inst[15:12]);
-
+      // Fetch instruction
+      instruction <= ram[program_counter];
+  
+      // Decode and execute instruction
+      case (instruction[15:12])
+        4'b0001: execute_move_immediate();
+        4'b0010: execute_store_to_memory();
+        4'b0011: execute_add();
+        4'b0100: execute_subtract();
+        4'b0101: execute_multiply();
+        4'b0110: execute_divide();
+        4'b0111: execute_print_memory();
+        4'b1000: ; // End of program (no operation)
+        4'b1001: execute_compare();
+        4'b1010: execute_jump();
+        4'b1011: execute_jump_not_equal();
+        4'b1100: execute_jump_less_equal();
+        4'b1101: execute_call();
+        4'b1110: execute_return();
+        default: $display("Unknown instruction: %b", instruction[15:12]);
       endcase
-
-
     end
   end
-endmodule
 
+  // Instruction execution tasks
+  task execute_move_immediate;
+    begin
+      $display("Moving immediate: %b to register: %b", instruction[7:0], instruction[11:9]);
+      general_registers[instruction[11:9]] <= instruction[7:0];
+      program_counter <= program_counter + 1;
+    end
+  endtask
+
+  task execute_store_to_memory;
+    begin
+      $display("Storing from register: %b to memory address: %b", instruction[11:9], instruction[7:0]);
+      ram[instruction[7:0]] <= general_registers[instruction[11:9]];
+      program_counter <= program_counter + 1;
+    end
+  endtask
+
+  task execute_add;
+    begin
+      $display("Adding register: %b + register: %b to register: %b", instruction[11:9], instruction[8:6], instruction[5:3]);
+      {carry_flag, general_registers[instruction[11:9]]} <= general_registers[instruction[8:6]] + general_registers[instruction[5:3]];
+      update_flags(general_registers[instruction[11:9]]);
+      program_counter <= program_counter + 1;
+    end
+  endtask
+
+  task execute_subtract;
+    begin
+      $display("Subtracting register: %b - register: %b to register: %b", instruction[11:9], instruction[8:6], instruction[5:3]);
+      {carry_flag, general_registers[instruction[11:9]]} <= general_registers[instruction[8:6]] - general_registers[instruction[5:3]];
+      update_flags(general_registers[instruction[11:9]]);
+      program_counter <= program_counter + 1;
+    end
+  endtask
+
+  task execute_multiply;
+    begin
+      $display("Multiplying register: %b * register: %b to register: %b", instruction[11:9], instruction[8:6], instruction[5:3]);
+      general_registers[instruction[11:9]] <= general_registers[instruction[8:6]] * general_registers[instruction[5:3]];
+      update_flags(general_registers[instruction[11:9]]);
+      program_counter <= program_counter + 1;
+    end
+  endtask
+
+  task execute_divide;
+    begin
+      $display("Dividing register: %b / register: %b to register: %b", instruction[11:9], instruction[8:6], instruction[5:3]);
+      if (general_registers[instruction[5:3]] != 0) begin
+        general_registers[instruction[11:9]] <= general_registers[instruction[8:6]] / general_registers[instruction[5:3]];
+        update_flags(general_registers[instruction[11:9]]);
+      end else begin
+        $display("Error: Division by zero");
+      end
+      program_counter <= program_counter + 1;
+    end
+  endtask
+
+  task execute_print_memory;
+    begin
+      $display("Memory address: %b, value: %b", instruction[7:0], ram[instruction[7:0]]);
+      uo_out <= ram[instruction[7:0]];
+      program_counter <= program_counter + 1;
+    end
+  endtask
+
+  task execute_compare;
+    reg [16:0] result;
+    begin
+      $display("Comparing register: %b (%d) with register: %b (%d)", instruction[11:9], general_registers[instruction[11:9]], instruction[8:6], general_registers[instruction[8:6]]);
+      result = general_registers[instruction[11:9]] - general_registers[instruction[8:6]];
+      zero_flag <= (result == 0);
+      negative_flag <= result[15];
+      carry_flag <= !result[16];
+      overflow_flag <= (general_registers[instruction[11:9]][15] != general_registers[instruction[8:6]][15]) && (result[15] != general_registers[instruction[11:9]][15]);
+      program_counter <= program_counter + 1;
+    end
+  endtask
+
+  task execute_jump;
+    begin
+      $display("Jumping to address: %b", instruction[7:0]);
+      program_counter <= instruction[7:0];
+    end
+  endtask
+
+  task execute_jump_not_equal;
+    begin
+      if (!zero_flag) begin
+        $display("Jumping to address: %b", instruction[7:0]);
+        program_counter <= instruction[7:0];
+      end else begin
+        $display("Not jumping, continuing to next instruction");
+        program_counter <= program_counter + 1;
+      end
+    end
+  endtask
+
+  task execute_jump_less_equal;
+    begin
+      if (negative_flag || zero_flag) begin
+        $display("Jumping to address: %b", instruction[7:0]);
+        program_counter <= instruction[7:0];
+      end else begin
+        $display("Not jumping, continuing to next instruction");
+        program_counter <= program_counter + 1;
+      end
+    end
+  endtask
+
+  task execute_call;
+    begin
+      $display("Calling address: %b", instruction[7:0]);
+      if (stack_pointer < 32) begin
+        stack[stack_pointer] <= program_counter + 1;
+        stack_pointer <= stack_pointer + 1;
+        program_counter <= instruction[7:0];
+      end else begin
+        $display("Error: Stack overflow");
+        program_counter <= program_counter + 1;
+      end
+    end
+  endtask
+
+  task execute_return;
+    begin
+      if (stack_pointer > 0) begin
+        stack_pointer <= stack_pointer - 1;
+        program_counter <= stack[stack_pointer - 1];
+        $display("Returning to address: %b", stack[stack_pointer - 1]);
+      end else begin
+        $display("Error: Stack underflow");
+        program_counter <= program_counter + 1;
+      end
+    end
+  endtask
+
+  // Helper function to update flags
+  function void update_flags(input [15:0] result);
+    begin
+      negative_flag = result[15];
+      zero_flag = (result == 0);
+    end
+  endfunction
+
+endmodule
